@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>岗位投入度算分表 · 决策体系工具 v1.0</title>
+<style>
+  body{font-family:"Microsoft YaHei",sans-serif;max-width:640px;margin:0 auto;padding:24px;color:#333;line-height:1.7}
+  h1{font-size:22px;color:#1F5C4A;border-bottom:2px solid #1F5C4A;padding-bottom:8px}
+  .field{margin:18px 0}
+  label{font-weight:bold;display:block;margin-bottom:4px}
+  input[type=range]{width:100%}
+  .val{color:#1F5C4A;font-weight:bold}
+  .hint{font-size:13px;color:#777;margin-top:2px}
+  .check{margin:18px 0;padding:12px;background:#FFF6F0;border:1px solid #F0C0A0;border-radius:6px}
+  .result{margin-top:24px;padding:16px;border-radius:8px;font-size:16px}
+  .ok{background:#EFF6F3;border:1px solid #1F5C4A}
+  .warn{background:#FFF9E6;border:1px solid #D4B106}
+  .halt{background:#FDECEC;border:1px solid #C0392B;font-weight:bold}
+  .fence{margin-top:20px;padding:12px;background:#F5F5F0;border-left:4px solid #999;font-size:13px;color:#555}
+  button{background:#1F5C4A;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:15px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1>岗位投入度算分表</h1>
+<p>公式：S = p×G − (1−p)×C + 0.3×R×L（p 为原始分除以 1.2 的修正值）</p>
+
+<div class="field">
+  <label>存续条件检查（先做这个）</label>
+  <div class="check">
+    <label style="font-weight:normal"><input type="checkbox" id="halt1"> 这个决策可能造成不可逆的健康损害</label>
+    <label style="font-weight:normal"><input type="checkbox" id="halt2"> 这个决策可能导致人身自由受限</label>
+    <label style="font-weight:normal"><input type="checkbox" id="halt3"> 这个决策涉及以生命或安全为代价换取收益</label>
+    <p class="hint">生命与自由不入公式——它们是公式停止的地方。勾选任何一项，工具将拒绝作答。</p>
+  </div>
+</div>
+
+<div class="field">
+  <label>p 成功率原始分：<span class="val" id="vp">7</span> / 10（修正后 <span class="val" id="vpa">5.83</span>）</label>
+  <input type="range" id="p" min="1" max="10" step="0.1" value="7">
+  <p class="hint">同岗位的人几年后达到了我想要的状态吗？（系统已自动除以 1.2 修正过度自信）</p>
+</div>
+<div class="field">
+  <label>G 上行收益：<span class="val" id="vg">7</span> / 10</label>
+  <input type="range" id="g" min="1" max="10" step="0.5" value="7">
+  <p class="hint">成功时带走什么？薪资、可带走的技能/客户/作品/资源。</p>
+</div>
+<div class="field">
+  <label>C 下行成本：<span class="val" id="vc">6</span> / 10</label>
+  <input type="range" id="c" min="1" max="10" step="0.1" value="6">
+  <p class="hint">时间损耗、情绪内耗、健康损耗，<b>加上机会成本（放弃的最优替代年收益，必填）</b>。</p>
+</div>
+<div class="field">
+  <label>R 可逆性：<span class="val" id="vr">6</span> / 10</label>
+  <input type="range" id="r" min="1" max="10" step="0.1" value="6">
+  <p class="hint">干砸了退出容易吗？能随时离职退回市场=9 分；服务期/行业标签锁死=2 分。</p>
+</div>
+<div class="field">
+  <label>L 复利性：<span class="val" id="vl">6</span> / 10</label>
+  <input type="range" id="l" min="1" max="10" step="0.1" value="6">
+  <p class="hint">积累的东西会自己增值吗？攒客户、作品、声誉=高分；纯重复劳动=低分。</p>
+</div>
+
+<button onclick="calc()">计算 S 值</button>
+
+<div id="out"></div>
+
+<div class="fence">
+  <b>边界声明</b>：本工具不度量生命、自由与他人的感情——它们不是变量，是公式停止的地方。
+  本结果仅为决策参考，不构成职业、投资或任何现实承诺。体系全文与《我不度量什么》见正典仓库（署名·非商业许可）。
+  支持本体系可购买完整版工具（69 元）；需要一对一算仓（99 元/次）请联系作者。
+</div>
+
+<script>
+function calc(){
+  const halt = document.getElementById('halt1').checked ||
+               document.getElementById('halt2').checked ||
+               document.getElementById('halt3').checked;
+  const out = document.getElementById('out');
+  if(halt){
+    out.innerHTML = '<div class="result halt">此决策不在本体系的计算范围内。<br>存在不可逆的生命、健康或自由风险时，请寻求现实中的专业帮助，而不是一个分数。<br>公式在这里停止——这是设计，不是缺陷。</div>';
+    return;
+  }
+  const pRaw = +document.getElementById('p').value;
+  const g = +document.getElementById('g').value;
+  const c = +document.getElementById('c').value;
+  const r = +document.getElementById('r').value;
+  const l = +document.getElementById('l').value;
+  // 口径：p×G 用修正后分数；(1−p) 用概率 = 原始分/10/1.2
+  const pScore = pRaw / 1.2;
+  const pProb = pRaw / 10 / 1.2;
+  const S2 = pScore*g - (1-pProb)*c + 0.3*r*l;
+  let cls='ok', verdict='';
+  if(S2<=0){cls='halt'; verdict='S ≤ 0：清仓。不纠结、不试错、不解释第二遍。';}
+  else if(S2<=10){cls='warn'; verdict='0 < S ≤ 10：轻仓试用。当过渡和素材来源，不投情绪。';}
+  else if(S2<=20){cls='ok'; verdict='10 < S ≤ 20：正常持有。守住下班后的资产层。';}
+  else {cls='ok'; verdict='S > 20：重仓。全情投入。';}
+  const fence = (r*l<10)
+    ? '<div class="result warn">⚠ 修正规则触发：R×L = '+(r*l).toFixed(1)+' &lt; 10。无论 S 多少，最高只能轻仓，并设 12 个月止损线——防止"工资还行"的消耗型岗位陷阱。</div>'
+    : '';
+  out.innerHTML = '<div class="result '+cls+'">S = '+S2.toFixed(1)+'<br>'+verdict+'</div>'+fence;
+}
+['p','g','c','r','l'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',e=>{
+    const v=e.target.value;
+    document.getElementById('v'+id).textContent=v;
+    if(id==='p')document.getElementById('vpa').textContent=(v/1.2).toFixed(2);
+  });
+});
+</script>
+</body>
+</html>
