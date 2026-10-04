@@ -25,14 +25,8 @@
 <h1>岗位投入度算分表</h1>
 <p>公式：S = p×G − (1−p)×C + 0.3×R×L（p 为原始分除以 1.2 的修正值）</p>
 
-<div class="field">
-  <label>存续条件检查（先做这个）</label>
-  <div class="check">
-    <label style="font-weight:normal"><input type="checkbox" id="halt1"> 这个决策可能造成不可逆的健康损害</label>
-    <label style="font-weight:normal"><input type="checkbox" id="halt2"> 这个决策可能导致人身自由受限</label>
-    <label style="font-weight:normal"><input type="checkbox" id="halt3"> 这个决策涉及以生命或安全为代价换取收益</label>
-    <p class="hint">生命与自由不入公式——它们是公式停止的地方。勾选任何一项，工具将拒绝作答。</p>
-  </div>
+<div class="fence" style="margin-top:0;margin-bottom:24px">
+  <b>非量化因素提示（不计入公式）</b>：若决策存在不可逆的健康、自由或安全代价，它们不是变量，而是公式停止的地方——本表结果对此类决策不适用。是否有此类风险，请自行判断。
 </div>
 
 <div class="field">
@@ -66,21 +60,12 @@
 <div id="out"></div>
 
 <div class="fence">
-  <b>边界声明</b>：本工具不度量生命、自由与他人的感情——它们不是变量，是公式停止的地方。
-  本结果仅为决策参考，不构成职业、投资或任何现实承诺。体系全文与《我不度量什么》见正典仓库（署名·非商业许可）。
-  支持本体系可购买完整版工具（69 元）；需要一对一算仓（99 元/次）请联系作者。
+  <b>边界声明</b>：本工具不度量生命、自由与他人的感情（见顶部提示）。本结果仅为决策参考，不构成职业、投资或任何现实承诺。<br>体系全文免费公开：《我不度量什么》与正典仓库见公众号「臧亥奎荣」（署名·非商业许可）。完整版工具与一对一算仓服务亦经公众号获取。
 </div>
 
 <script>
 function calc(){
-  const halt = document.getElementById('halt1').checked ||
-               document.getElementById('halt2').checked ||
-               document.getElementById('halt3').checked;
   const out = document.getElementById('out');
-  if(halt){
-    out.innerHTML = '<div class="result halt">此决策不在本体系的计算范围内。<br>存在不可逆的生命、健康或自由风险时，请寻求现实中的专业帮助，而不是一个分数。<br>公式在这里停止——这是设计，不是缺陷。</div>';
-    return;
-  }
   const pRaw = +document.getElementById('p').value;
   const g = +document.getElementById('g').value;
   const c = +document.getElementById('c').value;
