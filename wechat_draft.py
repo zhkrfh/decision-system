@@ -48,7 +48,7 @@ T = tok["access_token"]
 THUMB = get_thumb()
 
 html_path, title = sys.argv[1], sys.argv[2]
-author = sys.argv[3] if len(sys.argv) > 3 else "臧亥奎荣"
+author = sys.argv[3] if len(sys.argv) > 3 else "蔵亥喹荣"
 digest = sys.argv[4] if len(sys.argv) > 4 else ""
 content = open(html_path, encoding="utf-8").read()
 
