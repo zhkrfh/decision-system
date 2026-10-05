@@ -1,0 +1,117 @@
+# -*- coding: utf-8 -*-
+"""分发台 Dispatcher v0.1
+用法:
+  python tools/dispatcher.py plan                 # 各平台待办看板
+  python tools/dispatcher.py wx-check             # 公众号草稿箱核验(乱码/口径)
+  python tools/dispatcher.py wx-status            # 公众号发布状态
+  python tools/dispatcher.py log <平台> <标题> <状态> [备注]   # 记录发布
+  python tools/dispatcher.py metric <平台> <标题> <指标> <数值> # 回填指标
+  python tools/dispatcher.py report [周|月]       # 指标汇总
+"""
+import sys, os, csv, json, datetime, requests
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+DATA = ROOT / "data"; DATA.mkdir(exist_ok=True)
+PLOG = DATA / "publish_log.csv"; MET = DATA / "metrics.csv"
+
+def _env():
+    env = {}
+    for l in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
+        if "=" in l:
+            k, v = l.strip().split("=", 1); env[k] = v
+    return env
+
+def _token():
+    env = _env()
+    sec = [v for k, v in env.items() if "SECRET" in k.upper()][0]
+    r = requests.get("https://api.weixin.qq.com/cgi-bin/token",
+                     params={"grant_type": "client_credential", "appid": env["WX_APPID"], "secret": sec}, timeout=15).json()
+    if "access_token" not in r:
+        if r.get("errcode") == 40164:
+            raise SystemExit(f"[IP 白名单] 当前出口 IP {r['errmsg'].split('invalid ip ')[1].split(' ')[0]} 不在公众号白名单。\n"
+                             "解决：mp 后台 → 设置与开发 → 基本配置 → IP 白名单 → 添加该 IP。")
+        raise SystemExit(f"token 获取失败: {r}")
+    return r["access_token"]
+
+def _post(url, payload):
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    return json.loads(requests.post(url, data=body, headers={"Content-Type": "application/json; charset=utf-8"}, timeout=30).content.decode("utf-8"))
+
+def wx_status():
+    t = _token()
+    r = _post(f"https://api.weixin.qq.com/cgi-bin/draft/batchget?access_token={t}", {"offset": 0, "count": 10, "no_content": 1})
+    if "item" not in r:
+        print("draft/batchget:", r); return
+    print("== 草稿箱 ==")
+    for it in r["item"]:
+        for a in it["content"]["news_item"]:
+            print(f"  [{it['update_time'] and datetime.datetime.fromtimestamp(it['update_time']):%m-%d %H:%M}] {a['title']}")
+    p = _post(f"https://api.weixin.qq.com/cgi-bin/freepublish/batchget?access_token={t}", {"offset": 0, "count": 10, "no_content": 1})
+    if "item" in p:
+        print("== 已发表 ==")
+        for it in p["item"]:
+            a = it["content"]["news_item"][0]
+            print(f"  [{datetime.datetime.fromtimestamp(it['update_time']):%m-%d %H:%M}] {a['title']}")
+
+def wx_check():
+    t = _token()
+    r = _post(f"https://api.weixin.qq.com/cgi-bin/draft/batchget?access_token={t}", {"offset": 0, "count": 10, "no_content": 0})
+    bad = []
+    for it in r.get("item", []):
+        for a in it["content"]["news_item"]:
+            c = a["content"]
+            issues = []
+            if "\\u" in a["title"] or "\\u" in c: issues.append("双重编码")
+            for kw in ("52.6", "1.14", "45.3", "+0.3", "27.4"):
+                if kw in c: issues.append(f"旧口径残留 {kw}")
+            if "?" * 0 and False: pass
+            print(("  [OK] " if not issues else "  [!!] ") + a["title"] + ("  ← " + ",".join(issues) if issues else ""))
+            if issues: bad.append(a["title"])
+    print("核验完成：" + ("全部通过" if not bad else f"{len(bad)} 篇需修"))
+
+def _append(path, row):
+    new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        if new: w.writerow(["date"] + row_headers[path])
+        w.writerow([datetime.date.today().isoformat()] + row)
+
+row_headers = {PLOG: ["platform", "title", "status", "note"], MET: ["platform", "title", "metric", "value"]}
+
+def plan():
+    print("""== 本周待办看板（手工维护区，按大纲 v2.2）==
+公众号 : 已自动化。案例01 已发布；连载02 待 10-13 定时
+知乎   : [用户] 注册→四关核验选题→存底稿→15天后发首答（底稿: docs/知乎底稿_案例01回答.md）
+小红书 : [用户] 注册→第3天起发 assets/xhs/卡1-卡5（降敏版，勾选AI辅助）
+战绩板 : #1 案例01 进笔试验证截止 11-04，出结果即登记
+合集   : [用户] 后台手动创建（信息见对话记录）""")
+
+def report(period="周"):
+    if not MET.exists():
+        print("metrics.csv 为空，先回填数据"); return
+    import collections
+    agg = collections.defaultdict(dict)
+    with open(MET, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            key = (row["platform"], row["title"])
+            agg[key][row["metric"]] = agg[key].get(row["metric"], 0) + float(row["value"] or 0)
+    print(f"== 指标汇总（累计）==")
+    for (pf, ti), m in sorted(agg.items()):
+        s = "  ".join(f"{k}={v:g}" for k, v in sorted(m.items()))
+        print(f"  [{pf}] {ti[:20]}  {s}")
+
+def main():
+    a = sys.argv[1:] 
+    if not a: print(__doc__); return
+    cmd = a[0]
+    if cmd == "plan": plan()
+    elif cmd == "wx-status": wx_status()
+    elif cmd == "wx-check": wx_check()
+    elif cmd == "log": _append(PLOG, [a[1], a[2], a[3], a[4] if len(a) > 4 else ""]); print("logged")
+    elif cmd == "metric": _append(MET, [a[1], a[2], a[3], a[4]]); print("metric logged")
+    elif cmd == "report": report(*(a[1:2] or ["周"]))
+    else: print(__doc__)
+
+if __name__ == "__main__":
+    main()
