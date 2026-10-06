@@ -146,7 +146,10 @@ def monitor(cfg_file=None):
                 m = re.search(row["pattern"], html)
                 if not m:
                     print(f"  [miss] {row['title']}（页面结构可能变化，或需登录）"); continue
-                val = float(m.group(1).replace(",", ""))
+                try:
+                    val = float(m.group(1).replace(",", ""))
+                except (IndexError, ValueError):
+                    val = 1.0  # 无捕获组=连通性指标，命中即记 1
                 _append(MET, [row["platform"], row["title"], row["metric"], val])
                 print(f"  [ok] {row['title']} {row['metric']}={val:g}"); n += 1
             except Exception as e:
