@@ -11,7 +11,7 @@
   python tools/dispatcher.py post bluesky <标题> <正文文件>    # 发 Bluesky
   python tools/dispatcher.py post devto  <标题> <正文文件>     # 发 dev.to 文章
 """
-import sys, os, csv, json, datetime, requests
+import sys, os, csv, json, re, datetime, requests
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
