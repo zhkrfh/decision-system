@@ -156,6 +156,56 @@ def monitor(cfg_file=None):
                 print(f"  [err] {row['title']}: {e}")
     print(f"monitor 完成，回填 {n} 条（低频使用：每周一次，只抓公开页，勿提频）")
 
+def dispatch(md_file):
+    """一键分发：公众号草稿(API) + 独立站部署(git) + 国际渠道(API) + 手动渠道产物清单。发布键仅保留在公众号后台与知乎/小红书网页。"""
+    import subprocess
+    md = Path(md_file).resolve()
+    if not md.exists(): raise SystemExit(f"文件不存在: {md}")
+    stem = md.stem
+    env = _env()
+    print(f"== 分发：{stem} ==")
+    # 1 公众号素材+灌稿（演练模式：文件名含"演练"则跳过灌稿）
+    try:
+        subprocess.run([sys.executable, str(ROOT/"tools/md2html.py"), str(md), str(ROOT / "docs/素材" / f"公众号素材_{stem}.html")], check=True)
+        html = (ROOT / "docs/素材" / f"公众号素材_{stem}.html").read_text(encoding="utf-8")
+        if "演练" in stem:
+            print("[公众号] 演练模式：跳过灌稿")
+            raise ValueError("演练跳过")
+        t = _token()
+        r = _post(f"https://api.weixin.qq.com/cgi-bin/draft/add?access_token={t}",
+                  {"articles": [{"title": stem[:60], "author": "蔵亥喹荣", "digest": stem[:50], "content": html,
+                    "thumb_media_id": (ROOT/"thumb_media_id.txt").read_text(encoding="utf-8").strip(),
+                    "need_open_comment": 1, "only_fans_can_comment": 0}]})
+        print(f"[公众号] 草稿 {r.get('media_id') or r} → 发布键在你手上（后台定时/发表）")
+        _append(PLOG, ["公众号", stem, "草稿", "dispatch"])
+    except Exception as e:
+        print(f"[公众号] {'跳过' if '演练' in str(e) else '失败'}: {e}")
+    # 2 独立站（若为案例页则重建，然后 push）
+    try:
+        if stem.startswith("案例"):
+            subprocess.run([sys.executable, str(ROOT.parent/"站点/tools_build/build_case.py")], check=True, cwd=str(ROOT.parent/"站点"))
+        subprocess.run(["git", "add", "-A"], cwd=str(ROOT.parent/"站点"), check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "dispatch: "+stem], cwd=str(ROOT.parent/"站点"))
+        subprocess.run(["git", "push", "-q", "origin", "main"], cwd=str(ROOT.parent/"站点"), check=True)
+        print("[独立站] 已推送，Pages 自动重建")
+        _append(PLOG, ["独立站", stem, "已发布", "dispatch"])
+    except Exception as e:
+        print(f"[独立站] 失败: {e}")
+    # 3 国际渠道（有凭据则直发，无则提示）
+    for pf in ("telegram", "bluesky", "devto"):
+        key = {"telegram": "TELEGRAM_BOT_TOKEN", "bluesky": "BLUESKY_HANDLE", "devto": "DEVTO_API_KEY"}[pf]
+        if env.get(key):
+            try:
+                post(pf, stem, str(md)); _append(PLOG, [pf, stem, "已发布", "dispatch"])
+            except Exception as e:
+                print(f"[{pf}] 失败: {e}")
+        else:
+            print(f"[{pf}] 未授权（token 待配置），跳过")
+    # 4 手动渠道产物清单
+    print("[手动渠道] 知乎：docs/知乎底稿 → App 内贴入存草稿，你按发布")
+    print("[手动渠道] 小红书：assets/xhs/ 卡片 → App 上传，你按发布")
+    print("== 分发完成。发布键：公众号×1，知乎×1，小红书×1 ==")
+
 def main():
 
     a = sys.argv[1:] 
@@ -169,6 +219,7 @@ def main():
     elif cmd == "report": report(*(a[1:2] or ["周"]))
     elif cmd == "post": post(a[1], a[2], a[3])
     elif cmd == "monitor": monitor(a[2] if len(a) > 2 else None)
+    elif cmd == "dispatch": dispatch(a[1])
     else: print(__doc__)
 
 if __name__ == "__main__":
