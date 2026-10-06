@@ -7,6 +7,9 @@
   python tools/dispatcher.py log <平台> <标题> <状态> [备注]   # 记录发布
   python tools/dispatcher.py metric <平台> <标题> <指标> <数值> # 回填指标
   python tools/dispatcher.py report [周|月]       # 指标汇总
+  python tools/dispatcher.py post telegram <标题> <正文文件>   # 发 Telegram 频道
+  python tools/dispatcher.py post bluesky <标题> <正文文件>    # 发 Bluesky
+  python tools/dispatcher.py post devto  <标题> <正文文件>     # 发 dev.to 文章
 """
 import sys, os, csv, json, datetime, requests
 from pathlib import Path
@@ -101,7 +104,34 @@ def report(period="周"):
         s = "  ".join(f"{k}={v:g}" for k, v in sorted(m.items()))
         print(f"  [{pf}] {ti[:20]}  {s}")
 
+
+def post(provider, title, body_file):
+    body = Path(body_file).read_text(encoding="utf-8")
+    env = _env()
+    if provider == "telegram":
+        tok = env.get("TELEGRAM_BOT_TOKEN"); chat = env.get("TELEGRAM_CHAT_ID")
+        if not tok: raise SystemExit("缺 TELEGRAM_BOT_TOKEN（@BotFather 生成，见 docs/国际渠道自动化规划.md）")
+        u = f"https://api.telegram.org/bot{tok}/sendMessage"
+        r = requests.post(u, json={"chat_id": chat or "@", "text": f"*{title}*\n\n{body}", "parse_mode": "Markdown"}, timeout=20).json()
+        print("telegram:", r.get("ok") or r)
+    elif provider == "bluesky":
+        hd = env.get("BLUESKY_HANDLE"); pw = env.get("BLUESKY_APP_PASSWORD")
+        if not hd: raise SystemExit("缺 BLUESKY_HANDLE/BLUESKY_APP_PASSWORD（bsky.app → App Passwords）")
+        s = requests.post("https://bsky.social/xrpc/com.atproto.server.createSession", json={"identifier": hd, "password": pw}, timeout=20).json()
+        r = requests.post("https://bsky.social/xrpc/com.atproto.repo.createRecord", headers={"Authorization": "Bearer " + s["accessJwt"]}, timeout=20,
+            json={"repo": s["did"], "collection": "app.bsky.feed.post", "record": {"text": f"{title}\n\n{body}"[:300], "createdAt": datetime.datetime.now(datetime.timezone.utc).isoformat()}}).json()
+        print("bluesky:", "ok" if "uri" in r else r)
+    elif provider == "devto":
+        key = env.get("DEVTO_API_KEY")
+        if not key: raise SystemExit("缺 DEVTO_API_KEY（dev.to → Settings → Extensions → API Keys）")
+        r = requests.post("https://dev.to/api/articles", headers={"api-key": key}, timeout=20,
+            json={"article": {"title": title, "body_markdown": body, "published": False}}).json()
+        print("devto(draft):", r.get("url") or r)
+    else:
+        raise SystemExit(f"未知渠道 {provider}")
+
 def main():
+
     a = sys.argv[1:] 
     if not a: print(__doc__); return
     cmd = a[0]
@@ -111,6 +141,7 @@ def main():
     elif cmd == "log": _append(PLOG, [a[1], a[2], a[3], a[4] if len(a) > 4 else ""]); print("logged")
     elif cmd == "metric": _append(MET, [a[1], a[2], a[3], a[4]]); print("metric logged")
     elif cmd == "report": report(*(a[1:2] or ["周"]))
+    elif cmd == "post": post(a[1], a[2], a[3])
     else: print(__doc__)
 
 if __name__ == "__main__":
