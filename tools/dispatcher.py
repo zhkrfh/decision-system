@@ -130,6 +130,29 @@ def post(provider, title, body_file):
     else:
         raise SystemExit(f"未知渠道 {provider}")
 
+MONCFG = ROOT / "data" / "monitor_urls.csv"
+
+def monitor(cfg_file=None):
+    """低频抓取公开页面，正则提取指标自动回填 metrics.csv。配置行：平台,标题(匹配关键词),URL,提取正则,指标名"""
+    cfgp = ROOT / "data" / (cfg_file or "monitor_urls.csv")
+    if not cfgp.exists():
+        raise SystemExit(f"先创建 {cfgp}，每行: 平台,标题关键词,URL,正则,指标名")
+    ua = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    n = 0
+    with open(cfgp, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            try:
+                html = requests.get(row["url"], headers=ua, timeout=20).text
+                m = re.search(row["pattern"], html)
+                if not m:
+                    print(f"  [miss] {row['title']}（页面结构可能变化，或需登录）"); continue
+                val = float(m.group(1).replace(",", ""))
+                _append(MET, [row["platform"], row["title"], row["metric"], val])
+                print(f"  [ok] {row['title']} {row['metric']}={val:g}"); n += 1
+            except Exception as e:
+                print(f"  [err] {row['title']}: {e}")
+    print(f"monitor 完成，回填 {n} 条（低频使用：每周一次，只抓公开页，勿提频）")
+
 def main():
 
     a = sys.argv[1:] 
@@ -142,6 +165,7 @@ def main():
     elif cmd == "metric": _append(MET, [a[1], a[2], a[3], a[4]]); print("metric logged")
     elif cmd == "report": report(*(a[1:2] or ["周"]))
     elif cmd == "post": post(a[1], a[2], a[3])
+    elif cmd == "monitor": monitor(a[2] if len(a) > 2 else None)
     else: print(__doc__)
 
 if __name__ == "__main__":
