@@ -4,7 +4,8 @@
 一稿多发=dispatch。核心纪律：自动化做到发布键前一格，按键永远归用户。
 
 用法:
-  python tools/dispatcher.py plan                # 各平台待办看板
+  python tools/dispatcher.py plan                # 各平台待办看板（自动汇总）
+  python tools/dispatcher.py stats               # 公众号数据回流→metrics.csv
   python tools/dispatcher.py wx-status           # 公众号草稿箱/已发表
   python tools/dispatcher.py wx-check            # 公众号草稿核验(乱码/口径)
   python tools/dispatcher.py prep xhs [稿名]     # 小红书预填规程+台账登记
@@ -33,6 +34,7 @@ def main():
     if not a: print(__doc__); return
     cmd = a[0]
     if cmd == "plan": flows.plan()
+    elif cmd == "stats": wx_api.stats()
     elif cmd == "wx-status": wx_api.status()
     elif cmd == "wx-check": wx_api.check()
     elif cmd == "prep": prep.prep_xhs(a[2] if len(a) > 2 else "案例05_资格期断桥")

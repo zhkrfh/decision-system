@@ -6,12 +6,20 @@ from store import ROOT, DATA, PLOG, MET, append, env
 import wx_api
 
 def plan():
-    print("""== 本周待办看板（手工维护区，按大纲 v2.2）==
-公众号 : 已自动化。案例01 已发布；连载02 待 10-13 定时
-知乎   : [用户] 注册→四关核验选题→存底稿→15天后发首答（底稿: docs/知乎底稿_案例01回答.md）
-小红书 : [用户] prep xhs → assets/xhs/卡1-卡5，发布键归你
-战绩板 : #1 案例01 进笔试验证截止 11-04，出结果即登记
-合集   : [用户] 后台手动创建（信息见对话记录）""")
+    """自动看板：排期队列 + 内容状态 + 台账 pending + 人工事项"""
+    import content
+    print("== 分发台看板 " + datetime.date.today().isoformat() + " ==")
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        content.queue_cmd(["due"])
+        content.status_cmd(["list"])
+    print(buf.getvalue().rstrip())
+    print("""-- 人工事项（不可自动化）--
+公众号 : 发布键（草稿箱→定时/群发）
+知乎   : 养号期内不发；15天后 prep zhihu 首答
+小红书 : prep xhs → 页面过目 → 发布键 + AI声明弹窗
+战绩板 : #1 案例01 进笔试验证截止 11-04""")
 
 def report(period="周"):
     if not MET.exists():

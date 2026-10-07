@@ -50,6 +50,30 @@ def check():
             if issues: bad.append(a["title"])
     print("核验完成：" + ("全部通过" if not bad else f"{len(bad)} 篇需修"))
 
+def stats():
+    """数据回流：已发表文章 → datacube 拉阅读/分享/收藏 → metrics.csv。
+    注意：未认证订阅号报 48001（freepublish/datacube 均需认证），此时公众号数据改手动：
+    python tools/dispatcher.py metric 公众号 <标题> 阅读 <数>"""
+    import csv
+    from store import MET, append, ledger_rows
+    t = token()
+    p = post(f"https://api.weixin.qq.com/cgi-bin/freepublish/batchget?access_token={t}", {"offset": 0, "count": 10, "no_content": 1})
+    if "item" not in p:
+        print("freepublish/batchget:", p); return
+    n = 0
+    for it in p["item"]:
+        a = it["content"]["news_item"][0]
+        title = a["title"]
+        r = post(f"https://api.weixin.qq.com/datacube/getarticletotal?access_token={t}", {"publish_id": it["publish_id"]})
+        if "list" not in r or not r["list"]:
+            print(f"  [miss] {title}: {r.get('errcode')} {r.get('errmsg','')}"); continue
+        d = r["list"][-1]["details"][-1]  # 最新一天明细
+        for metric, key in (("阅读", "int_page_read_count"), ("分享", "ori_page_read_count"), ("收藏", "collect_count")):
+            append(MET, ["公众号", title, metric, d.get(key, 0)])
+        print(f"  [ok] {title}: 读{d.get('int_page_read_count',0)} 享{d.get('ori_page_read_count',0)} 藏{d.get('collect_count',0)} ({r['list'][-1]['details'][-1].get('date','')})")
+        n += 1
+    print(f"stats 完成，{n} 篇回填 metrics.csv")
+
 def draft_add(title, html, thumb_id):
     t = token()
     r = post(f"https://api.weixin.qq.com/cgi-bin/draft/add?access_token={t}",
