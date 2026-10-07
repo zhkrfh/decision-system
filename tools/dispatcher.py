@@ -16,13 +16,17 @@
   python tools/dispatcher.py monitor [配置文件]  # 公开页指标抓取回填
   python tools/dispatcher.py post <telegram|bluesky|devto> <标题> <正文文件>
   python tools/dispatcher.py dispatch <md文件>   # 一键分发（发布键归你）
+  python tools/dispatcher.py status list         # 内容状态机（draft→final→...→measured）
+  python tools/dispatcher.py status <稿名> <状态> # 推进状态（不可回退）
+  python tools/dispatcher.py queue add <日期|today> <平台> <稿名>  # 排期入队
+  python tools/dispatcher.py queue due [日期]    # 应发布清单
   python tools/dispatcher.py zh-scout            # 知乎选题侦察（热榜+垂直搜索）
 """
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import store, wx_api, zhihu_api, prep, flows  # noqa: E402
+import store, wx_api, zhihu_api, prep, flows, content  # noqa: E402
 
 def main():
     a = sys.argv[1:]
@@ -39,6 +43,8 @@ def main():
     elif cmd == "post": flows.post(a[1], a[2], a[3])
     elif cmd == "monitor": flows.monitor(a[1] if len(a) > 1 else None)
     elif cmd == "dispatch": flows.dispatch(a[1])
+    elif cmd == "status": content.status_cmd(a[1:])
+    elif cmd == "queue": content.queue_cmd(a[1:])
     elif cmd == "zh-scout": zhihu_api.scout()
     else: print(__doc__)
 
