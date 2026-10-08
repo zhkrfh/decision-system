@@ -55,3 +55,10 @@ def ledger_cmd(args):
             append(__import__("store").PLOG, [r["platform"], item, "已发布", ref])
         return
     print(__doc__)
+
+# ---- 浏览器故障恢复规程（SOP）----
+# prep 期间浏览器通信失败时的处置顺序：
+# 1. execute_script 前先探测（location.href），失败即停，同一页面最多试 2 次
+# 2. 报 "Another debugger already attached" → 用户侧关 F12 DevTools 或重载灵犀插件
+# 3. 通信超时 → 本轮放弃该页面操作，切手动兜底：用户抄数回填（metric/ledger 命令）
+# 4. 铁律：预填正文等关键内容必须本地落盘（docs/小红书发布包/），不能只存在页面里
