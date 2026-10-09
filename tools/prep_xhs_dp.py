@@ -42,21 +42,35 @@ def fill():
         else:
             sys.exit("等待登录超时（5分钟）。重跑即可。")
         page.get(PUB_URL); page.wait(3)
-    tab = page.ele('text=上传图文', timeout=15)
-    if not tab:
-        (ROOT/"dp_data/debug_page.html").write_text(page.html, encoding="utf-8")
-        sys.exit(f"找不到「上传图文」tab。URL: {page.url}\n页面已存 dp_data/debug_page.html 供排查")
-    page.ele('css:input[type=file]').input([str(c) for c in cards])
-    page.wait.ele_displayed('text=图片编辑', timeout=60)
+    # 页面有3个同名「上传图文」元素，第1个在屏幕外（隐藏抽屉），
+    # 只点屏幕内顶部坐标(y<200)的才是真tab；盲点第一个=图片全丢进视频通道
+    cands = [e for e in page.eles('text=上传图文')
+             if e.states.is_displayed and 0 < e.rect.location[0] < 800 and e.rect.location[1] < 200]
+    if not cands:
+        sys.exit("找不到可见的「上传图文」tab")
+    cands[-1].click(); page.wait(1.5)
+    inp = page.ele('css:input[type=file][accept*=image]', timeout=5) or page.ele('css:input.upload-input', timeout=5)
+    if not inp:
+        sys.exit("切tab后未找到图片file input（可能仍在视频tab）")
+    inp.input([str(c) for c in cards])
+    page.wait.ele_displayed('css:input[placeholder*="标题"]', timeout=60)
     print("[1/5] 5张卡上传完成")
 
-    # 2. 标题
-    t = page.ele('css:input[placeholder*="填写标题"]')
+    # 2. 标题（上传后表单渲染慢，最多等30秒）
+    t = page.ele('css:input[placeholder*="标题"]', timeout=15)
+    if not t and page.ele('css:.captcha-form,[class*=captcha]', timeout=3):
+        print(">> 触发验证码！请在弹出的浏览器窗口里手动完成验证（平台对新实例的反自动化检测，属正常）...", flush=True)
+        t = page.ele('css:input[placeholder*="标题"]', timeout=120)  # 人工解题后表单出现
+    if not t:
+        (ROOT/"dp_data/debug_no_title.html").write_text(page.html, encoding="utf-8")
+        sys.exit("标题框未出现（验证码未解或页面变更），debug已存")
     t.clear(); t.input(title)
     print("[2/5] 标题完成")
 
     # 3. 正文（tiptap ProseMirror）
-    ed = page.ele('css:[contenteditable="true"]')
+    ed = page.ele('css:[contenteditable="true"]', timeout=15)
+    if not ed:
+        sys.exit("正文编辑器未出现")
     ed.click()
     page.actions.key_down("CTRL").key_down("a").key_up("a").key_up("CTRL")
     ed.input(body, clear=True)
