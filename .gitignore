@@ -1,3 +1,8 @@
 
 .env
 tools/bin/
+__pycache__/
+*.pyc
+dp_data/
+.paste_cmd.json
+shot_*.jpg
