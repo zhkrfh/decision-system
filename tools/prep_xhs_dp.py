@@ -23,9 +23,11 @@ def new_page(headless=False):
 
 def fill():
     cards = sorted((ROOT / "assets/xhs_v2").glob("卡*.png"))
-    body = (ROOT / "docs/小红书发布包/康复专业坑不坑续篇_小红书正文.txt").read_text(encoding="utf-8").split("#康复专业")[0].rstrip()
-    title = "康复专业到底坑不坑？我用公式算了笔账"
-    tags = ["康复专业", "运动康复", "康复治疗师", "专业选择", "职业规划"]
+    # 读当前要发的稿（默认取最新生成的正典正文）
+    BODY_FILE = ROOT / "docs/小红书发布包/先查能不能输_小红书正文.txt"
+    body = BODY_FILE.read_text(encoding="utf-8").split("#职业规划")[0].rstrip()
+    title = "我算了个8分的机会差点全押，后来一道线拦住了我"
+    tags = ["职业规划", "求职", "决策方法", "裸辞", "跳槽", "应届生", "实习"]
     if len(cards) != 5:
         sys.exit(f"卡片不足5张: {[c.name for c in cards]}")
 
