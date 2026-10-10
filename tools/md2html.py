@@ -37,11 +37,9 @@ for raw in src.split('\n'):
         out.append(f'<p style="margin:0 0 14px;padding:10px 14px;background:#F7F7F2;border-left:3px solid #1F5C4A;font-size:14px;color:#555;">{inline(line[2:])}</p>')
     elif line.startswith('## '):
         close()
-        out.append(f'<section {SEC}><p style="margin:0 0 10px;"><strong style="color:#1F5C4A;font-size:17px;">{inline(line[3:])}</strong></p>')
-        out.append('</section>')  # 占位，稍后合并
-        out.pop();  # 简化：section 不嵌套闭合检查，直接输出开放结构
-        out.append('')
-        out[-1] = f'<section {SEC}><p style="margin:0 0 10px;"><strong style="color:#1F5C4A;font-size:17px;">{inline(line[3:])}</strong></p>'
+        # 分节标题：用带 margin 的 <p> 承载（公众号编辑器对 section 支持不佳）
+        # 修：原实现连续 append 后只 pop 一次，导致标题重复输出两次
+        out.append(f'<p style="margin:22px 0 10px;"><strong style="color:#1F5C4A;font-size:17px;">{inline(line[3:])}</strong></p>')
         state = 'sec'
     elif line.startswith('### '):
         close()
