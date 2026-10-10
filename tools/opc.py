@@ -16,6 +16,7 @@
   zancun      算仓交付（questionnaire/check/record）
   cap         能力层（status/llm/health）
   git         仓库操作（log/status/commit/push，带 EVOS 记录）
+  check       内容自检（recalc/audit/lint/due 发布前一键把关）
   all         依次跑全部只读检查
 """
 import os
@@ -184,6 +185,72 @@ def cmd_git(args):
     return p.returncode, "", ""
 
 
+def cmd_check(args):
+    """内容自检：发布前一键把关
+
+    recalc 算术复算（A3）—— 独立复算文中算式，不符即报警
+    audit  口径审计（A4）—— 旧值/旧公式残留，三层判定
+    lint   标题钩子（A5/A6）—— 场景化标题、场景化开头
+    due    预测到期（E5）—— 到期未登记进 EVOS 捕获
+
+    无参数时跑前三项只读检查；due 只扫不写，避免误改经验库。
+    """
+    argv = list(args or [])
+    sub = argv[0] if argv and not argv[0].startswith("-") else "all"
+
+    if sub == "recalc":
+        return run_tool("recalc.py", *argv[1:])
+    if sub == "audit":
+        return run_tool("audit.py", *argv[1:])
+    if sub == "lint":
+        return run_tool("lint.py", *argv[1:])
+    if sub == "due":
+        # capture 会写 EVOS 库，必须显式指定，避免 check 时误改经验库
+        if len(argv) > 1 and argv[1] == "capture":
+            print("提示：capture 会写入 EVOS 经验库，确认后执行")
+        return run_tool("due.py", *argv[1:])
+
+    # 默认：三项只读检查汇总
+    checks = [
+        ("算术复算", "recalc.py", []),
+        ("口径审计", "audit.py", []),
+        ("标题钩子", "lint.py", []),
+        ("预测到期", "due.py", ["scan"]),
+    ]
+    print("\n" + "=" * 58)
+    print(" 内容自检（发布前把关）")
+    print("=" * 58)
+    results = []
+    for name, script, cargs in checks:
+        t0 = time.time()
+        rc, out, err = run_tool(script, *cargs)
+        results.append((name, rc, out, time.time() - t0))
+
+    for name, rc, out, dur in results:
+        mark = "✓" if rc == 0 else "!"
+        print(f"  {mark} {name:<10} {dur:.1f}s")
+
+    # 汇总关键结论
+    print()
+    for name, rc, out, _ in results:
+        if not out:
+            continue
+        for line in out.splitlines():
+            s = line.strip()
+            if s.startswith("共复算") or s.startswith("合计") or s.startswith("→"):
+                print(f"  {name}：{s}")
+
+    failed = [n for n, rc, _, _ in results if rc != 0]
+    print()
+    if failed:
+        print(f"  {len(failed)} 项待处理：{'、'.join(failed)}")
+        print("  建议逐项查看：python tools/opc.py check <子项>")
+    else:
+        print("  全部通过")
+    print()
+    return 1 if failed else 0
+
+
 def cmd_all(args=None):
     """依次跑全部只读检查"""
     checks = [
@@ -192,6 +259,7 @@ def cmd_all(args=None):
         ("EVOS 看板", lambda: _rc(run_tool("evos.py", "status"))),
         ("内容看板", lambda: _rc(run_tool("dispatcher.py", "plan"))),
         ("预测到期", lambda: _rc(run_tool("evos.py", "scan"))),
+        ("内容自检", lambda: _rc(cmd_check([]))),
     ]
     print("\n" + "=" * 58)
     print(" 全量只读检查")
@@ -229,6 +297,7 @@ COMMANDS = {
     "zancun": (cmd_zancun, "算仓交付"),
     "cap": (cmd_cap, "能力层"),
     "git": (cmd_git, "仓库操作"),
+    "check": (cmd_check, "内容自检（recalc/audit/lint/due）"),
     "all": (cmd_all, "全量只读检查"),
 }
 
